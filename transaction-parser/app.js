@@ -8,6 +8,7 @@ var bodyParser = require('body-parser');
 var routes = require('./routes/index');
 var users = require('./routes/users');
 var cronJob = require('cron').CronJob;
+var moment = require('moment');
 
 var app = express();
 
@@ -59,10 +60,10 @@ app.use(function(err, req, res, next) {
 
 
 
-var stationInformationJob = new cronJob("0 0 * * *", function() {
-    console.log('//////////////////////////////');
-    var currentTime = date.now();
-    console.log('data extract job STARTED at '+ currentTime);
+var stationInformationJob = new cronJob("*/20 * * * * *", function() {
+      console.log('//////////////////////////////');
+      var currentTime = moment().format('YYYY MMMM DD HH:mm:ss');
+      console.log('data extract job STARTED at '+ currentTime);
     },function(){
 
 
