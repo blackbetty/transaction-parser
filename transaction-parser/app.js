@@ -15,6 +15,8 @@ var bodyParser = require('body-parser');
 var google = require('googleapis');
 var googleSheets = require('google-spreadsheet');
 var VerEx = require('verbal-expressions');
+var inserter = require('./inserter.js');
+
 
 //auth files
 var tokens = require('./private/tokens.json');
@@ -75,9 +77,6 @@ var sheet2;
 
 
 
-
-var currentTime = moment().format('YYYY MMMM DD HH:mm:ss');
-console.log('Google API Auth Started:' + currentTime);
 async.series([
     function setAuthOne(step) {
         var creds_json = {
@@ -87,40 +86,25 @@ async.series([
 
         doc1.useServiceAccountAuth(creds_json, step);
     },
-    function setAuthTwo(step) {
-        var creds_json = {
-            client_email: keys.client_email,
-            private_key: keys.private_key
-        }
-
-        doc2.useServiceAccountAuth(creds_json, step);
-    },
     function getInfoAndWorksheets(step) {
         doc1.getInfo(function(err, info) {
             console.log('Loaded doc: ' + info.title + ' by ' + info.author.email);
             sheet1 = info.worksheets[0];
             console.log('sheet 1: ' + sheet1.title + ' ' + sheet1.rowCount + 'x' + sheet1.colCount);
             //var lastParseTime = moment().format('YYYY MMMM DD HH:mm:ss');
-            // step();
-        });
-
-        doc2.getInfo(function(err, info) {
-            console.log('Loaded doc: ' + info.title + ' by ' + info.author.email);
-            sheet2 = info.worksheets[0];
-            console.log('sheet 2: ' + sheet2.title + ' ' + sheet2.rowCount + 'x' + sheet2.colCount);
-            //var lastParseTime = moment().format('YYYY MMMM DD HH:mm:ss');
             step();
         });
     },
     function workingWithRows(step) {
         // google provides some query options
+        var transactionObjects = []
         sheet1.getRows({
             offset: 1,
             limit: 2000,
             orderby: 'col2'
         }, function(err, rows) {
             console.log('Read ' + rows.length + ' rows');
-
+            var txnIterator = 0;
             for (var i = 0; i < rows.length; i++) {
                 if (rows[i].transaction.includes('($USD)') && !(rows[i].transaction.includes('<!DOCTYPE HTML PUBLIC'))) {
                     // here we check that it doesnt include html tags because sometimes chase sends alerts that
@@ -137,12 +121,22 @@ async.series([
                     var TransactionAmt = etlStringArray[0].replace('charge of ($USD) ', '$');
                     var TransactionLocation = etlStringArray[1].replace(' has', '');
 
-                    console.log('-----Transaction ' + i + '-----');
-                    console.log('Amount:' + TransactionAmt);
-                    console.log('Location:' + TransactionLocation);
+                    transactionObjects[txnIterator] = {
+                      'date': rows[i].date,
+                      'vendor': TransactionLocation,
+                      'amount': TransactionAmt
+                    };
+
+                    // console.log('-----Transaction ' + i + '-----');
+                    // // console.log('Amount:' + TransactionAmt);
+                    // // console.log('Location:' + TransactionLocation);
+                    // console.log(transactionObjects[txnIterator].date);
+                    // console.log(transactionObjects[txnIterator].vendor);
+                    // console.log(transactionObjects[txnIterator].amount);
+                    txnIterator++;
                 }
             }
-
+            inserter.insertIntoDestinationSheet(transactionObjects);
             step();
         });
     }
